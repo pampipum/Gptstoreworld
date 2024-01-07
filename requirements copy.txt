@@ -1,0 +1,9 @@
+Flask
+openai
+requests
+python-dotenv
+packaging
+Flask-Cors
+gunicorn
+pandas
+geopy
