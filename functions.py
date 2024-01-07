@@ -12,13 +12,8 @@ solar_data_cache = {}
 
 load_dotenv()  # This loads the variables from .env
 
-OPENAI_API_KEY = os.environ['OPENAI_API_KEY']
 GOOGLE_CLOUD_API_KEY = os.environ['GOOGLE_CLOUD_API_KEY']
 AIRTABLE_API_KEY = os.environ['AIRTABLE_API_KEY']
-
-# Init OpenAI Client
-client = OpenAI(api_key=OPENAI_API_KEY)
-
 
 # Add lead to Airtable
 def create_lead(name, phone, address):
