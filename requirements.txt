@@ -7,3 +7,4 @@ Flask-Cors
 gunicorn
 pandas
 geopy
+flask_cors
