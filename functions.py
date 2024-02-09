@@ -111,8 +111,6 @@ def calculate_electric_yield(area_m2, max_sunshine_hours_per_year):
     electric_yield = area_m2 * max_sunshine_hours_per_year * panel_capacity_watts * efficiency / 1000  # kWh
     return electric_yield
 
-# Load the installers data
-installers_df = pd.read_csv('solar_installers.csv')
 
 def process_solar_data(address):
     lat, lng = get_coordinates(address)
