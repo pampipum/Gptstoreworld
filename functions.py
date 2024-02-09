@@ -1,11 +1,9 @@
 import requests
 import os
-from openai import OpenAI
 from dotenv import load_dotenv
 import pandas as pd
-from geopy.distance import geodesic
-import evaluate
 import financial
+import json
 
 # Global cache for storing solar data calculations
 solar_data_cache = {}
@@ -13,30 +11,7 @@ solar_data_cache = {}
 load_dotenv()  # This loads the variables from .env
 
 GOOGLE_CLOUD_API_KEY = os.environ['GOOGLE_CLOUD_API_KEY']
-AIRTABLE_API_KEY = os.environ['AIRTABLE_API_KEY']
 
-# Add lead to Airtable
-def create_lead(name, phone, address):
-  url = "https://api.airtable.com/v0/appMsEE4H40MM10gI/Leads"  # Change this to your Airtable API URL
-  headers = {
-      "Authorization": f"Bearer {AIRTABLE_API_KEY}",
-      "Content-Type": "application/json"
-  }
-  data = {
-      "records": [{
-          "fields": {
-              "Name": name,
-              "Phone": phone,
-              "Address": address
-          }
-      }]
-  }
-  response = requests.post(url, headers=headers, json=data)
-  if response.status_code == 200:
-    print("Lead created successfully.")
-    return response.json()
-  else:
-    print(f"Failed to create lead: {response.text}")
 
 
 # Get coordidinates from address via Geocoding API
@@ -58,15 +33,32 @@ def get_solar_data(lat, lng):
         print(f"Using cached data for coordinates: {lat}, {lng}")
         return solar_data_cache[cache_key]
 
-    building_id = evaluate.get_building_id(lat, lng)
-    print(f"Retrieved Building ID: {building_id}")
-    if building_id:
-        solar_data = evaluate.get_solar_potential_for_building(building_id)
-        print(f"API Response Solar Data: {solar_data}")
-        solar_data_cache[cache_key] = solar_data
-        return solar_data
+    solar_api_url = f"https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude={lat}&location.longitude={lng}&requiredQuality=MEDIUM&key={GOOGLE_CLOUD_API_KEY}"
+    response = requests.get(solar_api_url)
+    
+    if response.status_code == 200:
+        data = response.json()
+        print("Solar data retrieved successfully:")
+
+        # Extract relevant solar potential data
+        solar_potential = data.get('solarPotential', {})
+        roof_segment_stats = solar_potential.get('roofSegmentStats', [])
+        
+        if roof_segment_stats:
+            # Process roof segment stats to find the best surface for solar
+            best_surface_details = process_solar_data_world(roof_segment_stats)
+            if best_surface_details:
+                print("Best surface details:")
+                print(json.dumps(best_surface_details, indent=4))
+            else:
+                print("Could not determine the best surface for solar panels.")
+        else:
+            print("No 'roofSegmentStats' found in 'solarPotential' or it is empty.")
+            return None
+        
+        return best_surface_details
     else:
-        print("Error: Could not retrieve building ID")
+        print(f"Error getting solar data: {response.text}")
         return None
 
 
@@ -84,12 +76,49 @@ def solar_panel_calculations(address):
 
     return get_solar_data(lat, lng)
 
+def process_solar_data_world(roof_segment_stats):
+    print("Starting to process solar panel data...")
+    
+    best_surface = None
+    max_electric_yield = 0
 
+    for segment in roof_segment_stats:
+        area_m2 = segment.get('stats', {}).get('areaMeters2', 0)
+        azimuth_degrees = segment.get('azimuthDegrees', 0)
+        pitch_degrees = segment.get('pitchDegrees', 0)
+        sunshine_quantiles = segment.get('stats', {}).get('sunshineQuantiles', [])
+        max_sunshine_hours_per_year = max(sunshine_quantiles) if sunshine_quantiles else 0  # Improved selection
+
+        electric_yield = calculate_electric_yield(area_m2, max_sunshine_hours_per_year)
+        
+        if electric_yield > max_electric_yield:
+            max_electric_yield = electric_yield
+            best_surface = {
+                'area_m2': area_m2,
+                'orientation': azimuth_degrees,
+                'slope': pitch_degrees,
+                'electric_yield': electric_yield
+            }
+
+    return best_surface
+
+def calculate_electric_yield(area_m2, max_sunshine_hours_per_year):
+    # Implement calculation logic here
+    # Consider panel capacity, efficiency, and other factors to estimate electric yield
+    # For simplicity, a basic calculation is demonstrated here
+    panel_capacity_watts = 300  # Example panel capacity
+    efficiency = 0.18  # Example efficiency
+    electric_yield = area_m2 * max_sunshine_hours_per_year * panel_capacity_watts * efficiency / 1000  # kWh
+    return electric_yield
+
+# Load the installers data
+installers_df = pd.read_csv('solar_installers.csv')
 
 def process_solar_data(address):
     lat, lng = get_coordinates(address)
     cache_key = f"{lat},{lng}"
 
+    # Assuming solar_data_cache and get_solar_data are defined elsewhere
     if cache_key in solar_data_cache:
         print(f"Using cached data for coordinates: {lat}, {lng}")
         solar_data = solar_data_cache[cache_key]
@@ -101,37 +130,20 @@ def process_solar_data(address):
     if solar_data is None or solar_data.get("error"):
         return {"error": "Could not retrieve solar data"} 
 
-    # Extract 'best_surface_data' for the solar system report
-    best_surface_data = solar_data.get('best_surface_data', {})
+    # Assuming you can get the best surface data and monthly electrical bill from solar_data
+    best_surface_data = process_solar_data_world(solar_data.get('roof_segment_stats', []))
+    monthly_electrical_bill = solar_data.get('monthly_electrical_bill', 0)  # You need to ensure this data is available
+
+    if not best_surface_data:
+        return {"error": "Best surface data could not be determined"}
+
     print(f"Processed Solar Data: {best_surface_data}")
 
+    # Adjusted call to generate_solar_system_report with the correct parameters
     return financial.generate_solar_system_report(
-        best_surface_data.get('area', 0),
-        best_surface_data.get('orientation', ''),
-        best_surface_data.get('slope', 0),
-        best_surface_data.get('mean_radiation', 0),
+        best_surface_data.get('area_m2', 0),
+        best_surface_data.get('azimuth_degrees', 0),
+        best_surface_data.get('pitch_degrees', 0),
         best_surface_data.get('electric_yield', 0),
-        best_surface_data.get('monthly_yield', [])
+        monthly_electrical_bill
     )
-
-# Load the installers data
-installers_df = pd.read_csv('solar_installers.csv')
-
-def find_best_solar_installers(address):
-    lat, lng = get_coordinates(address)
-    if not lat or not lng:
-        return {"error": "Could not get coordinates for the address provided."}
-
-    # Add a column to the DataFrame for the distance from the user's address
-    installers_df['distance'] = installers_df.apply(lambda row: geodesic((lat, lng), (row['Latitude'], row['Longitude'])).kilometers, axis=1)
-
-    # Sort by distance, rating, and number of reviews (assuming 'Review Summary' contains the number of reviews)
-    installers_df['review_count'] = installers_df['Review Summary'].str.extract(r'(\d+)').astype(float)
-    sorted_installers = installers_df.sort_values(by=['distance', 'Average Rating', 'review_count'], ascending=[True, False, False])
-
-    # Select the top three installers
-    top_three_installers = sorted_installers.head(3)
-
-    return top_three_installers[['Company Name', 'Address', 'Phone Number', 'Average Rating', 'Business Website']].to_dict(orient='records')
-
-

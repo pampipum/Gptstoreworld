@@ -40,31 +40,6 @@ def process_solar_data_api():
     except Exception as e:
         handle_exception(e)
 
-@app.route('/find_best_solar_installers', methods=['POST'])
-def find_best_solar_installers_api():
-    data = request.json
-    address = data.get('address')
-    if not address:
-        return jsonify({"error": "Address is required"}), 400
-    try:
-        result = functions.find_best_solar_installers(address)
-        return jsonify(result)
-    except Exception as e:
-        handle_exception(e)
-
-@app.route('/create_lead', methods=['POST'])
-def create_lead_api():
-    data = request.json
-    name = data.get('name')
-    phone = data.get('phone')
-    address = data.get('address')
-    if not all([name, phone, address]):
-        return jsonify({"error": "Name, phone, and address are required"}), 400
-    try:
-        result = functions.create_lead(name, phone, address)
-        return jsonify(result)
-    except Exception as e:
-        handle_exception(e)
 
 # Health check endpoint
 @app.route('/health', methods=['GET'])

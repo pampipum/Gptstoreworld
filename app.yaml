@@ -1,8 +1,0 @@
-runtime: python39 # Replace with your desired Python version
-
-entrypoint: gunicorn -w 4 -b :$PORT --timeout 130 main:app # Specify the entrypoint for your application
-
-env_variables:
-  GOOGLE_CLOUD_API_KEY: "AIzaSyDIt2qrYoiqJK-W46RWdydj6x9UAV7BtiM"
-  AIRTABLE_API_KEY: "patHd3Suhhfa9Slcx.fcf6b37081e87a67d6c2f58239a722e0d9e32dae542ff03e14b17d17db461374"
-  # Add more environment variables as needed
