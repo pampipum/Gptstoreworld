@@ -32,10 +32,13 @@ def solar_panel_calculations_api():
 def process_solar_data_api():
     data = request.json
     address = data.get('address')
+    monthly_electrical_bill = data.get('monthly_electrical_bill')
     if not address:
         return jsonify({"error": "Address is required"}), 400
+    if not monthly_electrical_bill:
+        return jsonify({"error": "monthly_electrical_bill is required"}), 400
     try:
-        result = functions.process_solar_data(address)
+        result = functions.process_solar_data(address, monthly_electrical_bill)
         return jsonify(result)
     except Exception as e:
         handle_exception(e)
