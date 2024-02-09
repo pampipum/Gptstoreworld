@@ -8,35 +8,45 @@ def generate_solar_system_report(area_m2, azimuth_degrees, pitch_degrees, electr
     LIFESPAN = 25  # Lifespan of the solar system in years
     CO2_SAVINGS_PER_KWH = 0.4  # Average CO2 savings per kWh produced
     AVERAGE_ELECTRICITY_RATE = 0.15  # Average electricity rate (€/kWh)
+    DEGRADATION_RATE = 0.005  # Annual degradation rate of panel efficiency
+    EFFICIENCY_LOSS_ORIENTATION = 0.05  # Efficiency loss due to non-ideal orientation
+    EFFICIENCY_LOSS_PITCH = 0.03  # Efficiency loss due to non-ideal pitch
 
-    # Step 1: Calculate potential system size based on area
-    max_num_of_panels = area_m2 // PANEL_SIZE
-    potential_system_size = max_num_of_panels * (PANEL_SIZE * PANEL_EFFICIENCY)
-    print(f"Max Number of Panels: {max_num_of_panels}, Potential System Size: {potential_system_size} kW")
+    # Adjust efficiency based on orientation and pitch
+    adjusted_efficiency = PANEL_EFFICIENCY * (1 - EFFICIENCY_LOSS_ORIENTATION) * (1 - EFFICIENCY_LOSS_PITCH)
 
-    # Step 2: Use the provided annual electric yield
-    annual_yield = electric_yield
-    print(f"Annual Electricity Production: {annual_yield} kWh")
+    # Step 1: Calculate optimal system size based on monthly bill and electricity rate
+    annual_consumption = (monthly_electrical_bill / AVERAGE_ELECTRICITY_RATE) * 12
+    optimal_system_size_kw = annual_consumption / (365 * 24 * adjusted_efficiency)  # Convert to kW
 
-    # Step 3: Estimate financial benefits based on monthly electrical bill
-    annual_savings = (monthly_electrical_bill * 12) - (annual_yield * AVERAGE_ELECTRICITY_RATE)
-    total_system_cost = potential_system_size * COST_PER_KW
-    payback_period = total_system_cost / annual_savings if annual_savings != 0 else "Infinity"
+    # Ensure the system size does not exceed the maximum possible installation size
+    max_possible_system_size = (area_m2 / PANEL_SIZE) * PANEL_EFFICIENCY
+    system_size_kw = min(optimal_system_size_kw, max_possible_system_size)
 
-    print(f"Annual Savings: €{annual_savings:.2f}, Total System Cost: €{total_system_cost:.2f}, Payback Period: {payback_period} years")
+    print(f"Optimal System Size: {system_size_kw} kW, Adjusted for Installation Limit: {max_possible_system_size} kW")
 
-    # Step 4: Compute environmental benefits
-    annual_co2_savings = annual_yield * CO2_SAVINGS_PER_KWH
+    # Step 2: Estimate financial benefits
+    # Adjust annual production for degradation over the lifespan
+    annual_production_kwh = system_size_kw * 365 * 24 * adjusted_efficiency * (1 - DEGRADATION_RATE * LIFESPAN / 2)
+    annual_savings = annual_production_kwh * AVERAGE_ELECTRICITY_RATE
+    total_system_cost = system_size_kw * COST_PER_KW
+    payback_period = total_system_cost / annual_savings
+
+    print(f"Annual Savings: €{annual_savings:.2f}, Total System Cost: €{total_system_cost:.2f}, Payback Period: {payback_period:.2f} years")
+
+    # Step 3: Compute environmental benefits
+    annual_co2_savings = annual_production_kwh * CO2_SAVINGS_PER_KWH
     print(f"Annual CO₂ Savings: {annual_co2_savings:.2f} kg")
 
-    # Step 5: Compile the report
+    # Step 4: Compile the report
     report = {
-        "Potential System Size": f"{potential_system_size:.2f} kW",
-        "Annual Electricity Production": f"{annual_yield:.2f} kWh",
+        "System Size kW": f"{system_size_kw:.2f} kW",
+        "Adjusted Efficiency": f"{adjusted_efficiency:.2%}",
+        "Annual Electricity Production": f"{annual_production_kwh:.2f} kWh",
         "Financial Benefits": {
             "Annual Savings": f"€{annual_savings:.2f}",
             "Total System Cost": f"€{total_system_cost:.2f}",
-            "Payback Period": f"{payback_period} years"
+            "Payback Period": f"{payback_period:.2f} years"
         },
         "Environmental Benefits": f"{annual_co2_savings:.2f} kg CO₂ saved annually",
         "Lifespan": f"{LIFESPAN} years"
